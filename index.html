@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Molle IPTV Player</title>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: sans-serif;
+            background: #111;
+            color: #eee;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 1.5rem;
+            min-height: 100vh;
+        }
+
+        h1 { margin-bottom: 1rem; font-size: 1.4rem; letter-spacing: 0.05em; }
+
+        #status {
+            font-size: 0.85rem;
+            color: #f90;
+            margin-bottom: 0.5rem;
+            min-height: 1.2em;
+        }
+
+        video {
+            width: 100%;
+            max-width: 860px;
+            aspect-ratio: 16/9;
+            background: #000;
+            border-radius: 6px;
+            margin-bottom: 1rem;
+        }
+
+        #filters {
+            display: none;
+            width: 100%;
+            max-width: 860px;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        #search, #category-filter, #language-filter {
+            padding: 0.5rem 0.75rem;
+            background: #222;
+            border: 1px solid #444;
+            border-radius: 4px;
+            color: #eee;
+            font-size: 0.95rem;
+        }
+
+        #search { flex: 1; min-width: 0; }
+        #category-filter, #language-filter { flex: 0 0 auto; }
+
+        #channel-list {
+            width: 100%;
+            max-width: 860px;
+            max-height: 340px;
+            overflow-y: auto;
+            border: 1px solid #333;
+            border-radius: 4px;
+            background: #1a1a1a;
+        }
+
+        .channel {
+            padding: 0.5rem 0.75rem;
+            border-bottom: 1px solid #2a2a2a;
+            cursor: pointer;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: background 0.1s;
+        }
+
+        .channel:hover  { background: #2a2a2a; }
+        .channel.active { background: #1e3a5f; }
+        .channel.failed { color: #f55; }
+
+        .channel-logo {
+            width: 28px;
+            height: 28px;
+            object-fit: contain;
+            flex-shrink: 0;
+            border-radius: 3px;
+            background: #333;
+        }
+
+        .channel-title { flex: 1; }
+        .channel-group { font-size: 0.75rem; color: #888; white-space: nowrap; }
+
+        #empty-msg { padding: 1rem; color: #888; text-align: center; }
+    </style>
+</head>
+<body>
+    <h1>📺 Molle IPTV</h1>
+    <div id="status">Loading playlist…</div>
+    <video id="video" controls></video>
+    <div id="filters">
+        <input id="search" type="text" placeholder="Search channels…">
+        <select id="language-filter"></select>
+        <select id="category-filter"></select>
+    </div>
+    <div id="channel-list"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <script>
+    // ─── Config ──────────────────────────────────────────────────────────────
+    const PLAYLIST_URL =
+        'https://raw.githubusercontent.com/molle-me/tv/main/playlist.m3u8';
+
+    // CORS proxy: many public IPTV streams don't send Access-Control-Allow-Origin
+    // headers, so hls.js (which uses XHR) gets blocked by the browser.
+    // A proxy re-fetches the stream server-side and adds the required headers.
+    // Set USE_PROXY = false if streams work without it (e.g. on a self-hosted setup).
+    const USE_PROXY  = false;
+    const PROXY_BASE = 'https://cors-anywhere.herokuapp.com/';  // swap for own proxy
+
+    function proxied(url) {
+        return USE_PROXY ? PROXY_BASE + url : url;
+    }
+
+    // ─── Category normalization ──────────────────────────────────────────────
+    // Upstream group-title values are messy (179+ distinct strings, compound
+    // values like "Animation;Comedy", and ~3300 channels tagged "Undefined").
+    // Collapse them into a small, consistent set for the category filter.
+    const CATEGORY_MAP = {
+        news: 'News', public: 'News', legislative: 'News',
+        sports: 'Sports', outdoor: 'Sports',
+        movies: 'Movies & Series', series: 'Movies & Series', classic: 'Movies & Series',
+        entertainment: 'Entertainment', comedy: 'Entertainment',
+        music: 'Music',
+        kids: 'Kids & Family', family: 'Kids & Family', animation: 'Kids & Family',
+        documentary: 'Documentary & Education', education: 'Documentary & Education',
+        science: 'Documentary & Education', culture: 'Documentary & Education',
+        religious: 'Religious',
+        lifestyle: 'Lifestyle', cooking: 'Lifestyle', travel: 'Lifestyle',
+        auto: 'Lifestyle', shop: 'Lifestyle', business: 'Lifestyle', weather: 'Lifestyle',
+    };
+    const OTHER_CATEGORY = 'Other';
+
+    function normalizeCategory(rawGroup) {
+        const parts = rawGroup.split(';').map(s => s.trim().toLowerCase()).filter(Boolean);
+        for (const part of parts) {
+            if (CATEGORY_MAP[part]) return CATEGORY_MAP[part];
+        }
+        return OTHER_CATEGORY;
+    }
+
+    // ─── Playlist parsing ─────────────────────────────────────────────────────
+    async function fetchPlaylist(url) {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`HTTP ${res.status} fetching playlist`);
+        return (await res.text()).split('\n');
+    }
+
+    function parseChannels(lines) {
+        const channels = [];
+        let insecureSkipped = 0;
+
+        for (let i = 0; i < lines.length; i++) {
+            if (!lines[i].startsWith('#EXTINF')) continue;
+
+            // Parse attributes from the #EXTINF tag (tvg-logo, group-title, etc.)
+            const meta      = lines[i];
+            const title     = meta.split(',').slice(1).join(',').trim() || 'Untitled';
+            const logo      = (meta.match(/tvg-logo="([^"]*)"/)  || [])[1] || '';
+            const rawGroup  = (meta.match(/group-title="([^"]*)"/) || [])[1] || '';
+            const language  = (meta.match(/tvg-language="([^"]*)"/) || [])[1] || '';
+
+            // Find the next non-comment, non-empty line — that's the stream URL.
+            let streamUrl = '';
+            for (let j = i + 1; j < lines.length; j++) {
+                const l = lines[j].trim();
+                if (l && !l.startsWith('#')) { streamUrl = l; break; }
+            }
+
+            if (!streamUrl) continue;
+
+            // This page is served over https, so browsers block http:// stream
+            // requests as mixed content — they'd never play. Skip them here
+            // instead of listing dead entries (playlist.m3u8 itself still has
+            // them, for players outside the browser where this isn't an issue).
+            if (streamUrl.startsWith('http://')) {
+                insecureSkipped++;
+                continue;
+            }
+
+            if (streamUrl.startsWith('https://')) {
+                channels.push({
+                    title, logo, url: streamUrl,
+                    group: normalizeCategory(rawGroup),
+                    language: language || 'Unknown',
+                });
+            }
+        }
+        return { channels, insecureSkipped };
+    }
+
+    // ─── Playback ─────────────────────────────────────────────────────────────
+    function loadChannel(channel, itemEl) {
+        const video = document.getElementById('video');
+        const url   = proxied(channel.url);
+
+        setStatus(`Loading: ${channel.title}`);
+
+        // Mark active channel in list
+        document.querySelectorAll('.channel').forEach(el => el.classList.remove('active'));
+        if (itemEl) itemEl.classList.add('active');
+
+        // Tear down any existing hls instance before creating a new one
+        if (window._hls) {
+            window._hls.destroy();
+            window._hls = null;
+        }
+
+        if (Hls.isSupported()) {
+            const hls = new Hls();
+            window._hls = hls;
+
+            hls.loadSource(url);
+            hls.attachMedia(video);
+
+            hls.on(Hls.Events.MANIFEST_PARSED, () => {
+                video.play().catch(() => {
+                    // Autoplay blocked by browser — user just needs to click play.
+                    setStatus(`Click ▶ to play: ${channel.title}`);
+                });
+                setStatus('');
+            });
+
+            hls.on(Hls.Events.ERROR, (_, data) => {
+                if (data.fatal) {
+                    setStatus(`❌ Stream failed: ${channel.title} (${data.type})`);
+                    if (itemEl) itemEl.classList.add('failed');
+                }
+            });
+
+        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+            // Native HLS support (Safari / iOS)
+            video.src = url;
+            video.play().catch(() => setStatus(`Click ▶ to play: ${channel.title}`));
+            setStatus('');
+        } else {
+            setStatus('❌ HLS not supported in this browser.');
+        }
+    }
+
+    // ─── UI helpers ───────────────────────────────────────────────────────────
+    function setStatus(msg) {
+        document.getElementById('status').textContent = msg;
+    }
+
+    function renderList(channels, filter = '', category = '', language = '') {
+        const list  = document.getElementById('channel-list');
+        const query = filter.toLowerCase();
+        const visible = channels.filter(ch =>
+            (!query || ch.title.toLowerCase().includes(query)) &&
+            (!category || ch.group === category) &&
+            (!language || ch.language === language)
+        );
+
+        list.innerHTML = '';
+
+        if (!visible.length) {
+            list.innerHTML = '<div id="empty-msg">No channels found.</div>';
+            return;
+        }
+
+        visible.forEach((ch, idx) => {
+            const div = document.createElement('div');
+            div.className = 'channel';
+            div.innerHTML = `
+                ${ch.logo ? `<img class="channel-logo" src="${ch.logo}" alt="" loading="lazy"
+                    onerror="this.style.display='none'">` : ''}
+                <span class="channel-title">${ch.title}</span>
+                ${ch.group ? `<span class="channel-group">${ch.group}</span>` : ''}
+            `;
+            div.addEventListener('click', () => loadChannel(ch, div));
+            list.appendChild(div);
+
+            // Auto-play first channel on initial load (no filter/category/language active)
+            if (idx === 0 && !filter && !category && !language) loadChannel(ch, div);
+        });
+    }
+
+    // ─── Entry point ─────────────────────────────────────────────────────────
+    async function main() {
+        try {
+            const lines = await fetchPlaylist(PLAYLIST_URL);
+            const { channels, insecureSkipped } = parseChannels(lines);
+
+            if (!channels.length) {
+                setStatus('⚠️ Playlist loaded but no valid channels found.');
+                document.getElementById('channel-list').innerHTML =
+                    '<div id="empty-msg">No channels.</div>';
+                return;
+            }
+
+            setStatus(
+                `${channels.length} channels loaded` +
+                (insecureSkipped ? ` (${insecureSkipped} insecure http streams skipped — blocked by the browser on this https page)` : '') +
+                '.'
+            );
+
+            const search   = document.getElementById('search');
+            const catSel   = document.getElementById('category-filter');
+            const langSel  = document.getElementById('language-filter');
+            const filters  = document.getElementById('filters');
+
+            const categories = [...new Set(channels.map(ch => ch.group))].sort((a, b) =>
+                a === OTHER_CATEGORY ? 1 : b === OTHER_CATEGORY ? -1 : a.localeCompare(b)
+            );
+            catSel.innerHTML = '<option value="">All categories</option>' +
+                categories.map(c => `<option value="${c}">${c}</option>`).join('');
+
+            const languages = [...new Set(channels.map(ch => ch.language))].sort((a, b) =>
+                a === 'Unknown' ? 1 : b === 'Unknown' ? -1 : a.localeCompare(b)
+            );
+            langSel.innerHTML = '<option value="">All languages</option>' +
+                languages.map(l => `<option value="${l}">${l}</option>`).join('');
+
+            filters.style.display = 'flex';
+            const update = () => renderList(channels, search.value, catSel.value, langSel.value);
+            search.addEventListener('input', update);
+            catSel.addEventListener('change', update);
+            langSel.addEventListener('change', update);
+
+            renderList(channels);
+
+        } catch (err) {
+            setStatus(`❌ Failed to load playlist: ${err.message}`);
+            console.error(err);
+        }
+    }
+
+    main();
+    </script>
+</body>
+</html>
