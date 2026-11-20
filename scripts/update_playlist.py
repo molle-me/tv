@@ -97,16 +97,27 @@ GEOBLOCK_DECOYS = ("video_no_available.mp4",)
 KODI_EPG = "https://iptv-epg.org/files/epg-dk.xml.gz"
 
 
+def fetch(url, attempts=3, pause=10):
+    """GET with a couple of retries. iptv-org's API and the raw GitHub host
+    both drop the odd request, and one dropped request used to cost a whole
+    source — or all the metadata — for twelve hours."""
+    for attempt in range(1, attempts + 1):
+        try:
+            resp = requests.get(url, timeout=30)
+            resp.raise_for_status()
+            return resp
+        except requests.RequestException:
+            if attempt == attempts:
+                raise
+            time.sleep(pause)
+
+
 def fetch_text(url):
-    resp = requests.get(url, timeout=30)
-    resp.raise_for_status()
-    return resp.text
+    return fetch(url).text
 
 
 def fetch_json(url):
-    resp = requests.get(url, timeout=30)
-    resp.raise_for_status()
-    return resp.json()
+    return fetch(url).json()
 
 
 def load_metadata():
@@ -123,9 +134,13 @@ def load_metadata():
         feeds = fetch_json(f"{API}/feeds.json")
         languages = {l["code"]: l["name"] for l in fetch_json(f"{API}/languages.json")}
     except Exception as e:
-        print(f"WARNING: metadata unavailable, channels stay unenriched: {e}",
-              file=sys.stderr)
-        return {}, {}, {}, set(), {}, {}
+        # Publishing without it files every channel under "General" with no
+        # country, and tv.html's genre and country menus go empty. The lists
+        # from the last good build are far better than that, so stop here and
+        # let the next scheduled run try again.
+        print(f"ERROR: metadata unavailable after retries ({e}); "
+              "leaving the published playlists alone.", file=sys.stderr)
+        sys.exit(1)
 
     by_code = {r["code"]: r for r in regions}
     country_region = {}
