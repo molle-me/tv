@@ -50,9 +50,6 @@ UA = "Mozilla/5.0 (compatible; molle-iptv-scout/1.0; +https://github.com/molle-m
 #                         iptv-org's jmp2.uk links
 #   fanmingming/live      IPv6-only streams; GitHub runners have no IPv6
 CANDIDATES = [
-    "https://www.tdtchannels.com/lists/tv.m3u8",       # Spain, maintained DTT list
-    "https://m3upt.com/iptv",                          # Portugal
-    "https://nexonic-technologies.github.io/nexonic-iptv/playlists/all.m3u",
     "https://iptv-org.github.io/iptv/countries/dk.m3u",
     "https://iptv-org.github.io/iptv/countries/no.m3u",
     "https://iptv-org.github.io/iptv/countries/se.m3u",

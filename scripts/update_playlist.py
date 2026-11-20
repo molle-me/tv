@@ -38,6 +38,10 @@ import requests
 SOURCES = [
     ("iptv-org/index", "https://iptv-org.github.io/iptv/index.m3u"),
     ("Free-TV/IPTV", "https://raw.githubusercontent.com/Free-TV/IPTV/master/playlist.m3u8"),
+    # Sampled 2026-11-20 against the two above: new channels / share answering
+    ("TDTChannels", "https://www.tdtchannels.com/lists/tv.m3u8"),        # 378 / 65 %, Spain
+    ("M3UPT", "https://m3upt.com/iptv"),                                # 864 / 95 %, Portugal
+    ("Nexonic", "https://nexonic-technologies.github.io/nexonic-iptv/playlists/all.m3u"),  # 705 / 90 %
 ]
 
 API = "https://iptv-org.github.io/api"
@@ -330,13 +334,13 @@ def next_hops(playlist):
     *last* segment only — in a live window the first one is the oldest and may
     already be gone from the CDN, while the player starts near the end.
 
-    A uri is relative (no ":") or absolute ("://"). That skips the broken
-    tags some servers send without their "#" — "EXT-X-VERSION:6" — which the
-    player ignores too.
+    Tags some servers send without their "#" — "EXT-X-VERSION:6" — are not
+    uris and are skipped. A plain colon is not enough to tell: Wowza paths
+    carry one ("_definst_/smil:channel.smil/chunklist.m3u8").
     """
     uris = [line.strip() for line in playlist.splitlines()
             if line.strip() and not line.startswith("#")
-            and (":" not in line or "://" in line)]
+            and not re.match(r"EXT[A-Z-]*:", line.strip())]
     if not uris:
         return []
     return uris[:3] if "#EXT-X-STREAM-INF" in playlist else uris[-1:]
