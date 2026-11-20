@@ -97,16 +97,27 @@ GEOBLOCK_DECOYS = ("video_no_available.mp4",)
 KODI_EPG = "https://iptv-epg.org/files/epg-dk.xml.gz"
 
 
+def fetch(url, attempts=3, pause=10):
+    """GET with a couple of retries. iptv-org's API and the raw GitHub host
+    both drop the odd request, and one dropped request used to cost a whole
+    source — or all the metadata — for twelve hours."""
+    for attempt in range(1, attempts + 1):
+        try:
+            resp = requests.get(url, timeout=30)
+            resp.raise_for_status()
+            return resp
+        except requests.RequestException:
+            if attempt == attempts:
+                raise
+            time.sleep(pause)
+
+
 def fetch_text(url):
-    resp = requests.get(url, timeout=30)
-    resp.raise_for_status()
-    return resp.text
+    return fetch(url).text
 
 
 def fetch_json(url):
-    resp = requests.get(url, timeout=30)
-    resp.raise_for_status()
-    return resp.json()
+    return fetch(url).json()
 
 
 def load_metadata():
@@ -123,9 +134,13 @@ def load_metadata():
         feeds = fetch_json(f"{API}/feeds.json")
         languages = {l["code"]: l["name"] for l in fetch_json(f"{API}/languages.json")}
     except Exception as e:
-        print(f"WARNING: metadata unavailable, channels stay unenriched: {e}",
-              file=sys.stderr)
-        return {}, {}, set(), {}, {}
+        # Publishing without it files every channel under "General" with no
+        # country, and tv.html's genre and country menus go empty. The lists
+        # from the last good build are far better than that, so stop here and
+        # let the next scheduled run try again.
+        print(f"ERROR: metadata unavailable after retries ({e}); "
+              "leaving the published playlists alone.", file=sys.stderr)
+        sys.exit(1)
 
     by_code = {r["code"]: r for r in regions}
     country_region = {}
@@ -147,18 +162,32 @@ def load_metadata():
 
     # language lives on the feed, not the channel: the same channel can carry
     # different languages on different feeds
-    lang = {}
+    # — and so does where it is meant to be watched. Pluto's Danish feed of an
+    # American series is "7thHeaven.se@DK": the channel is filed under Sweden,
+    # the feed is broadcast to Denmark, with Danish subtitles. Filed by the
+    # channel, 136 of the 153 feeds iptv-org lists for Denmark landed under
+    # Sweden here. Only country-level areas count; "r/EUR" says nothing useful.
+    lang, area = {}, {}
     for feed in feeds:
+        key = f"{feed['channel']}@{feed['id']}"
         codes = feed.get("languages") or []
         if codes:
-            lang[f"{feed['channel']}@{feed['id']}"] = languages.get(codes[0], codes[0])
+            lang[key] = languages.get(codes[0], codes[0])
+        cc = [a[2:] for a in feed.get("broadcast_area") or [] if a.startswith("c/")]
+        if cc:
+            area[key] = cc
 
     print(f"Metadata: {len(meta)} channels, {len(lang)} feeds, "
-          f"{len(nsfw)} flagged adult")
-    return meta, lang, nsfw, countries, country_region
+          f"{len(area)} with a country-level broadcast area, {len(nsfw)} flagged adult")
+    return meta, lang, area, nsfw, countries, country_region
 
 
-def enrich(extinf, meta, lang, nsfw, countries, country_region):
+# A feed sent to more countries than this is a pan-regional one; its own
+# country then says more than a dropdown entry in every one of them.
+MAX_AREA_COUNTRIES = 4
+
+
+def enrich(extinf, meta, lang, area, nsfw, countries, country_region):
     """Returns the #EXTINF line with our attributes filled in."""
     tvg_id = (re.search(r'tvg-id="([^"]*)"', extinf) or [None, ""])[1]
     channel_id = tvg_id.split("@")[0]
@@ -175,6 +204,12 @@ def enrich(extinf, meta, lang, nsfw, countries, country_region):
         if cc in countries:
             country = countries[cc]
             region = region or country_region.get(cc, "")
+
+    # where the feed is broadcast beats where the channel is from
+    sent_to = [c for c in area.get(tvg_id, []) if c in countries]
+    if 0 < len(sent_to) <= MAX_AREA_COUNTRIES:
+        country = ";".join(countries[c] for c in sent_to)
+        region = country_region.get(sent_to[0], region)
 
     attrs = {
         "tvg-language": lang.get(tvg_id, ""),
@@ -205,7 +240,7 @@ def enrich(extinf, meta, lang, nsfw, countries, country_region):
     return extinf
 
 
-def merge(sources, meta, lang, nsfw, countries, country_region):
+def merge(sources, meta, lang, area, nsfw, countries, country_region):
     """Returns (entries, options): (#EXTINF, url) pairs, and url -> option lines.
 
     The url is not always the line after #EXTINF. iptv-org puts
@@ -235,7 +270,7 @@ def merge(sources, meta, lang, nsfw, countries, country_region):
             # "://" also turns away placeholders like "[NO PUBLIC STREAM]"
             if "://" not in url_line or url_line.startswith("#") or url_line in seen:
                 continue
-            entries.append((enrich(line, meta, lang, nsfw, countries, country_region),
+            entries.append((enrich(line, meta, lang, area, nsfw, countries, country_region),
                             url_line))
             if opts:
                 options[url_line] = opts
@@ -455,8 +490,8 @@ def write(path, entries, options=None, header="#EXTM3U"):
 
 
 def main():
-    meta, lang, nsfw, countries, country_region = load_metadata()
-    entries, options = merge(SOURCES, meta, lang, nsfw, countries, country_region)
+    meta, lang, area, nsfw, countries, country_region = load_metadata()
+    entries, options = merge(SOURCES, meta, lang, area, nsfw, countries, country_region)
     if not entries:
         print("ERROR: All sources failed.", file=sys.stderr)
         sys.exit(1)
