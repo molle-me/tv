@@ -11,15 +11,34 @@ metadata, tests every stream, and publishes only the ones that answered.
 
 Used live at [molle.me](https://molle.me).
 
-## The two playlists
+## The three playlists
 
 | File | Channels | For |
 |---|---|---|
 | `playlist.m3u8` | verified | **Web pages.** Every channel was reachable over https with open CORS at build time. This is the one to embed. |
-| `playlist-all.m3u8` | everything | **VLC, Kodi, TiviMate.** Native players don't care about https or CORS, so they can play a great deal more. |
+| `playlist-all.m3u8` | everything | **VLC, TiviMate.** Native players don't care about https or CORS, so they can play a great deal more. |
+| `playlist-kodi.m3u8` | everything | **Kodi.** The same channels, with ids a TV guide can match — see [Kodi](#kodi). |
 
-Both are deduplicated and carry `group-title`, `tvg-country`, `tvg-region` and
-`tvg-language` on every entry.
+All are deduplicated and carry `group-title`, `tvg-country`, `tvg-region` and
+`tvg-language` on every entry. The two native-player lists also keep the
+`#EXTVLCOPT:http-user-agent` / `http-referrer` lines some channels need.
+
+## Kodi
+
+1. Install **PVR IPTV Simple Client** (Add-ons → Install from repository →
+   PVR clients).
+2. Set *M3U → Location* to *Remote path* and the URL to
+   `https://raw.githubusercontent.com/molle-me/tv/main/playlist-kodi.m3u8`.
+3. That's it: the guide comes along. The playlist header names
+   `https://iptv-epg.org/files/epg-dk.xml.gz`, which IPTV Simple uses whenever
+   the add-on has no EPG location of its own.
+
+The header holds one guide, and it is the Danish one — IPTV Simple reads only
+the first url there. For another country, put its file from
+[iptv-epg.org](https://iptv-epg.org) (`epg-se.xml.gz`, `epg-de.xml.gz`, …)
+under *EPG → XMLTV URL*; on Kodi 20 or later, add an extra add-on instance per
+country. `playlist-all.m3u8` won't find a guide in Kodi: its ids name the feed
+(`DR1.dk@SD`) and guides name the channel (`DR1.dk`).
 
 ## Use it on your own site
 
@@ -67,8 +86,8 @@ is the whole navigation — no other setup, no server, no API key.
 
 ## Why a channel gets dropped
 
-`is_browser_playable()` in `scripts/update_playlist.py` is the whole policy,
-and each rule is a real failure that used to reach visitors:
+`stream_status()` in `scripts/update_playlist.py` is the whole policy, and
+each rule is a real failure that used to reach visitors:
 
 1. **Not https.** An `http://` stream is blocked as mixed content on any https
    page. Nothing in the page can override this — it is enforced by the browser
@@ -81,6 +100,15 @@ and each rule is a real failure that used to reach visitors:
 3. **`http://` inside the manifest.** A playlist can answer `200` over https
    and still point every variant at `http://`. The failure then lands one hop
    later, where it looks like nothing happened at all.
+4. **Not a playlist.** A `200` that turns out to be an HTML error page, a DASH
+   manifest or a raw transport stream is no use to hls.js.
+5. **A broken next hop.** The check follows the playlist the way the player
+   will: the first variant of a master playlist, or the newest segment of a
+   media playlist (fetched for one kilobyte). Rules 2–3 apply there too.
+
+**One failure is not a verdict.** A timeout, a reset or a `5xx` gets a second
+attempt twenty seconds after the first pass; only a stream that fails both is
+dropped. A `404` is an answer and is not retried.
 
 **Geo-restricted channels are kept, not dropped.** The build runs on a GitHub
 runner in the United States; your visitors are somewhere else. A stream that
@@ -89,7 +117,14 @@ machine*. DR1 and DR2 refuse the runner and answer `200` on a home connection, a
 an earlier version of this check deleted them for it. Those channels stay in
 the list carrying `tvg-geo="restricted"`, so a player can tell the visitor a
 channel may need to be watched from its home country instead of pretending it
-doesn't exist.
+doesn't exist. The same goes for broadcasters that answer `200` with a "not
+available in your country" clip instead of refusing — they are recognised by
+the clip they redirect to.
+
+The retry, the geo-block decoys and the one-hop-deeper check are ideas taken
+from [Free-TV/IPTV](https://github.com/Free-TV/IPTV)'s `check_channels.py` and
+[Romaxa55/world_ip_tv](https://github.com/Romaxa55/world_ip_tv); the code here
+is our own.
 
 ## How the list grows: the source scout
 

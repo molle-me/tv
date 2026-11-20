@@ -42,7 +42,17 @@ UA = "Mozilla/5.0 (compatible; molle-iptv-scout/1.0; +https://github.com/molle-m
 
 # Curated candidates. These are public aggregator playlists; each is judged by
 # the same sample validation as everything else and dropped if it fails.
+#
+# Not here, and why — so nobody adds them again without a reason:
+#   i.mjh.nz              publishes only XMLTV guides now, no playlists
+#   BuddyChewChew/pluto   urls carry a per-run device id, so every build would
+#                         churn ~10 MB of diff; Pluto already arrives via
+#                         iptv-org's jmp2.uk links
+#   fanmingming/live      IPv6-only streams; GitHub runners have no IPv6
 CANDIDATES = [
+    "https://www.tdtchannels.com/lists/tv.m3u8",       # Spain, maintained DTT list
+    "https://m3upt.com/iptv",                          # Portugal
+    "https://nexonic-technologies.github.io/nexonic-iptv/playlists/all.m3u",
     "https://iptv-org.github.io/iptv/countries/dk.m3u",
     "https://iptv-org.github.io/iptv/countries/no.m3u",
     "https://iptv-org.github.io/iptv/countries/se.m3u",
