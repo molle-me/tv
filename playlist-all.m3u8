@@ -8347,7 +8347,7 @@ https://dethich.pw/htv7/index.m3u8
 https://dethich.pw/htv9/index.m3u8
 #EXTINF:-1 tvg-region="Americas" tvg-country="United States" tvg-language="Spanish" tvg-id="HTV.us@SD" tvg-logo="https://i.imgur.com/NlKFNHS.png" group-title="Music",HTV (720p)
 http://45.171.64.30:6060/play/a012/index.m3u8
-#EXTINF:-1 tvg-region="Americas" tvg-country="Argentina;Uruguay" tvg-language="Spanish" tvg-id="HTV.us@Argentina" tvg-logo="https://i.imgur.com/NlKFNHS.png" group-title="Music",HTV Argentina (720p)
+#EXTINF:-1 tvg-region="Americas" tvg-country="United States" tvg-id="HTV.us@Argentina" tvg-logo="https://i.imgur.com/NlKFNHS.png" group-title="Music",HTV Argentina (720p)
 http://45.134.141.161:2200/ARG/HTV/index.m3u8
 #EXTINF:-1 tvg-region="Americas" tvg-country="Dominican Republic" tvg-language="Spanish" tvg-id="HTVLive.do@SD" tvg-logo="https://i.imgur.com/0WBsAin.png" group-title="Entertainment",HTV Live (1080p) [Not 24/7]
 https://stream1.28tv.online/HTVLiveCanal52/index.m3u8
@@ -25732,6 +25732,11 @@ https://cdn.jwplayer.com/manifests/Mbkr8pJ8.m3u8
 https://cdn.jwplayer.com/manifests/3AhzNuqR.m3u8
 #EXTINF:-1 media="true" group-title="General" tvg-logo="https://raw.githubusercontent.com/LITUATUI/M3UPT/main/logos/Eixo_do_Mal.png",Eixo do Mal - 15/4/2022
 https://content.jwplatform.com/manifests/jL3dl5uq.m3u8
+#EXTINF:-1 media="true" group-title="General" tvg-logo="https://raw.githubusercontent.com/LITUATUI/M3UPT/main/logos/PCNELID.png",PCNELID - 20/11/2026
+#EXTVLCOPT:http-user-agent="Mozilla/5.0 (X11; Linux x86_64; rv:159.0) Gecko/20100101 Firefox/159.0"
+#EXTVLCOPT:http-origin=https://sicnoticias.pt
+#EXTVLCOPT:http-referrer=https://sicnoticias.pt
+https://videos.impresa.pt/videos/hls/sicnot/2026/11/21/d4c77fd8-3135-4396-8f4c-f87ddac3400a/video.m3u8
 #EXTINF:-1 media="true" group-title="General" tvg-logo="https://raw.githubusercontent.com/LITUATUI/M3UPT/main/logos/PCNELID.png",PCNELID - 13/11/2026
 #EXTVLCOPT:http-user-agent="Mozilla/5.0 (X11; Linux x86_64; rv:159.0) Gecko/20100101 Firefox/159.0"
 #EXTVLCOPT:http-origin=https://sicnoticias.pt
