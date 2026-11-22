@@ -8280,13 +8280,13 @@ https://ciner.daioncdn.net/ht-spor/ht-spor.m3u8?app=web
 https://dethich.pw/htv1/index.m3u8
 #EXTINF:-1 tvg-region="Americas" tvg-country="United States" tvg-language="English" tvg-id="HTV1HoustonTelevision.us@SD" tvg-logo="https://i.imgur.com/zvj1boM.jpg" group-title="News",HTV 1 Houston Television (720p)
 https://stream.swagit.com/live-edge/houstontx/smil:hd-16x9-2-a/playlist.m3u8
-#EXTINF:-1 tvg-region="Asia" tvg-country="Vietnam" tvg-language="Vietnamese" tvg-id="HTV2.vn@SD" tvg-logo="https://upload.wikimedia.org/wikipedia/commons/d/d2/HTV2_-_Vie_Channel.png" group-title="Entertainment",HTV2 (720p)
+#EXTINF:-1 tvg-region="Asia" tvg-country="Vietnam" tvg-id="HTV2.vn@SD" tvg-logo="https://upload.wikimedia.org/wikipedia/commons/d/d2/HTV2_-_Vie_Channel.png" group-title="Entertainment",HTV2 (720p)
 https://dethich.pw/htv2/index.m3u8
 #EXTINF:-1 tvg-region="Americas" tvg-country="United States" tvg-language="English" tvg-id="HTV2HoustonTelevision.us@SD" tvg-logo="https://i.imgur.com/zvj1boM.jpg" group-title="News",HTV 2 Houston Television (720p)
 https://stream.swagit.com/live-edge/houstontx/smil:hd-16x9-2-b/playlist.m3u8
 #EXTINF:-1 tvg-region="Asia" tvg-country="Vietnam" tvg-language="Vietnamese" tvg-id="HTV3.vn@SD" tvg-logo="https://upload.wikimedia.org/wikipedia/commons/6/65/HTV3-2018.png" group-title="Movies & Series",HTV3 (720p)
 https://dethich.pw/htv3/index.m3u8
-#EXTINF:-1 tvg-region="Asia" tvg-country="Vietnam" tvg-language="Vietnamese" tvg-id="HTV4.vn@SD" tvg-logo="https://upload.wikimedia.org/wikipedia/commons/thumb/1/1f/HTV4_logo.webp/960px-HTV4_logo.webp.png" group-title="Documentary",HTV4 (1080p)
+#EXTINF:-1 tvg-region="Asia" tvg-country="Vietnam" tvg-id="HTV4.vn@SD" tvg-logo="https://upload.wikimedia.org/wikipedia/commons/thumb/1/1f/HTV4_logo.webp/960px-HTV4_logo.webp.png" group-title="Documentary",HTV4 (1080p)
 https://freem3u.xyz/api/live/play.m3u8?vid=9
 #EXTINF:-1 tvg-region="Asia" tvg-country="Vietnam" tvg-language="Vietnamese" tvg-id="HTV5.vn@HD" tvg-logo="https://upload.wikimedia.org/wikipedia/commons/c/c3/HTV5_Bchannel.png" group-title="Documentary",HTV5 (1080p)
 https://freem3u.xyz/api/live/play.m3u8?vid=151
